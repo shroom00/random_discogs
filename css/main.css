@@ -1,0 +1,165 @@
+/* cover fallback image start */
+.bezel {
+  display: inline-block;
+  line-height: 0;
+  position: relative;
+}
+
+.bezel::after {
+  content: "";
+
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-bottom-color: rgba(0, 0, 0, 0.15);
+  border-top-color: rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+}
+
+div.body {
+  display: grid;
+  margin-bottom: 1em;
+  grid-column-gap: 0;
+  grid-row-gap: 0;
+  grid-template-columns: 150px 1fr;
+  grid-template-rows: auto 1fr;
+}
+
+img.thumbnail {
+  max-width: 150px;
+  max-height: 150px;
+  object-fit: contain;
+}
+div.thumbnail {
+  grid-area: 1/1/3/2;
+  text-align: center;
+}
+
+.fallback {
+  display: flex;
+  align-items: center;
+
+  background-color: #e6eaed;
+  position: relative;
+}
+
+.fallback svg {
+  color: #9b9b9b;
+  margin: auto;
+  width: 70%;
+  max-width: 120px;
+}
+
+.icon {
+  forced-color-adjust: auto;
+}
+
+.icon path {
+  fill: currentColor;
+}
+/* cover fallback image end */
+
+/* info text start */
+* {
+  font-family: "Helvetica Neue", "Helvetica", "Nimbus Sans", "Arial", sans-serif;
+  font-size: 16px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-left: 1.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.info {
+  grid-area: 2 / 2 / 3 / 3;
+  margin-left: 1.5rem;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.info-text,
+.info-text * {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+}
+
+a {
+  color: #2653d9;
+  text-decoration-line: none;
+}
+
+a:hover,
+a:visited,
+a:active {
+  color: #07b;
+  text-decoration-line: underline;
+}
+
+table {
+  border-collapse: collapse;
+  line-height: 18px;
+  width: 100%;
+  table-layout: auto;
+
+  tr {
+    vertical-align: top;
+    border-top: 1px solid #e5e5e5;
+
+    &:first-of-type {
+      border-top: 0;
+    }
+  }
+
+  td {
+    padding: 2px;
+  }
+}
+
+.table {
+  margin-top: 0.75rem;
+  border-spacing: 0;
+
+  tr {
+    border: none;
+  }
+
+  th {
+    width: 0;
+    text-align: left;
+    padding-right: 1.5rem;
+    white-space: nowrap;
+    vertical-align: top;
+    font-weight: normal;
+    padding-bottom: 0.25rem;
+  }
+
+  td {
+    vertical-align: top;
+  }
+
+  @media (max-width: 600px) {
+    th {
+      margin-top: 4px;
+      padding-bottom: 2px;
+    }
+
+    tr {
+      display: flex;
+      flex-direction: column;
+      border: none;
+    }
+  }
+}
+/* info text end */

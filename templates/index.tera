@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="/css/main.css" />
+    <title>RanDiscogs</title>
+  </head>
+  <body>
+    <div class="body">
+      <h1>{{ title }}</h1>
+      <div class="thumbnail">
+        {% if cover is defined %}
+        <img
+          class="thumbnail"
+          {#
+          height="150px"
+          width="150px"
+          #}
+          src="{{ cover }}"
+          alt="{{ title }} cover"
+        />
+        {% else %}
+        <div style="width: 150px; height: 150px" class="fallback bezel">
+          <svg
+            style="width: 150px"
+            aria-label="No image available; add an image"
+            alt="No image available; add an image"
+            viewBox="0 0 1024 1024"
+            role="img"
+            class="icon"
+          >
+            <path
+              d="M691 333a252 252 0 00-432 179 252 252 0 00253 253 252 252 0 00179-432zM512 692a180 180 0 110-360 180 180 0 010 360z"
+            ></path>
+            <path
+              d="M747 277a331 331 0 00-567 235 331 331 0 00567 235 331 331 0 000-470zM512 769a257 257 0 110-514 257 257 0 010 514z"
+            ></path>
+            <path
+              d="M803 221a410 410 0 00-702 291 410 410 0 00411 411 410 410 0 00291-702zM512 848a336 336 0 110-672 336 336 0 010 672z"
+            ></path>
+            <path
+              d="M519 27h-8A486 486 0 0026 508v5A486 486 0 10519 27zm-7 900a415 415 0 110-830 415 415 0 010 830zM511 27h-4 4zM1022 513z"
+            ></path>
+            <path
+              d="M374 512a137 137 0 11275 0 138 138 0 11-275 0zm6 0a132 132 0 10263 0 132 132 0 10-263 0z"
+            ></path>
+            <path d="M534 512a22 22 0 11-44 0 22 22 0 0144 0z"></path>
+            <path
+              d="M0 512a512 512 0 111024 0A512 512 0 110 512zm152-359a507 507 0 000 719v-1a507 507 0 00719 0 507 507 0 000-719 507 507 0 00-719 0v1z"
+            ></path>
+          </svg>
+        </div>
+        {% endif %}
+      </div>
+      <div class="info">
+        <table class="table">
+          <tr>
+            <th>
+              <h2 class="info-text">Label:</h2>
+            </th>
+            <td>
+              <p class="info-text">
+                {% for label in labels %} {% set name = label.0 %} {% set catno
+                = label.1 %}
+                {{ name }}
+                {% if catno != "none" %} – {{ catno }}
+                {% endif %}{% if not loop.last %}, {% endif %} {% endfor %}
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <th>
+              <h2 class="info-text">Format:</h2>
+            </th>
+            <td>
+              <p class="info-text">
+                {% for format in formats %} {% if loop.first %}
+                <a
+                  href="https://www.discogs.com/search/?format_exact={{
+                    format | urlencode
+                  }}"
+                  >{{ format }}</a
+                >
+                {%- else %}
+                {{ format }}
+                {%- endif %}{% if not loop.last %}, {% endif %} {% endfor %}
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <th>
+              <h2 class="info-text">Country:</h2>
+            </th>
+            <td>
+              <p class="info-text">
+                <a
+                  href="https://www.discogs.com/search/?country={{
+                    country | urlencode
+                  }}"
+                  >{{ country }}</a
+                >
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <th>
+              <h2 class="info-text">Year:</h2>
+            </th>
+            <td>
+              <p class="info-text">{{ year }}</p>
+            </td>
+          </tr>
+          <tr>
+            <th>
+              <h2 class="info-text">Genre:</h2>
+            </th>
+            <td>
+              <p class="info-text">
+                {% for genre in genres %}
+                <a
+                  href="https://www.discogs.com/genre/{{ genre | urlencode }}"
+                  >{{ genre }}</a
+                >
+                {%- if not loop.last %}, {% endif %} {% endfor %}
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <th>
+              <h2 class="info-text">Style:</h2>
+            </th>
+            <td>
+              <p class="info-text">
+                {% for style in styles %}
+                <a
+                  href="https://www.discogs.com/style/{{ style | urlencode }}"
+                  >{{ style }}</a
+                >
+                {%- if not loop.last %}, {% endif %} {% endfor %}
+              </p>
+            </td>
+          </tr>
+        </table>
+
+        <a href="./"><button>New Random Release</button></a>
+        <a href="{{ uri }}" target="_blank" rel="noopener"
+          ><button>View on Discogs</button></a
+        >
+      </div>
+    </div>
+  </body>
+</html>
