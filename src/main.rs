@@ -13,7 +13,12 @@ use std::{
 };
 
 use actix_files::Files;
-use actix_web::{get, rt::time::sleep, web::Data, App, HttpResponse, HttpServer, Responder};
+use actix_web::{
+    get,
+    rt::time::sleep,
+    web::{scope, Data},
+    App, HttpResponse, HttpServer, Responder,
+};
 use constants::{CONFIG, TOKEN};
 use rand::{distributions::WeightedError, seq::SliceRandom, thread_rng, Rng};
 use reqwest::{
@@ -75,7 +80,21 @@ async fn make_api_request(client: &Client, url: String) -> ApiResult {
     let text = response.text().await.unwrap();
     let result = &serde_json::from_str::<Value>(&text).unwrap()["results"][0];
 
-    let title = result["title"].as_str().and_then(|title| Some(title.chars().rev().collect::<String>().replacen(" - ", " – ", 1).chars().rev().collect::<String>())).unwrap_or(String::new());
+    let title = result["title"]
+        .as_str()
+        .and_then(|title| {
+            Some(
+                title
+                    .chars()
+                    .rev()
+                    .collect::<String>()
+                    .replacen(" - ", " – ", 1)
+                    .chars()
+                    .rev()
+                    .collect::<String>(),
+            )
+        })
+        .unwrap_or(String::new());
     let labels = result["labels"]
         .as_array()
         .and_then(|labels| {
@@ -623,6 +642,7 @@ pub async fn main() -> Result<(), std::io::Error> {
         tera.autoescape_on(vec![".html", ".htm", ".xml", ".tera"]);
         let cache = ResponseCache::new(60 * 60 * 24 * 2, "cache");
         App::new()
+            .service(scope(&CONFIG.scope))
             .app_data(Data::new(cache))
             .app_data(Data::new(tera))
             .service(get_random)
@@ -639,7 +659,7 @@ pub async fn main() -> Result<(), std::io::Error> {
     println!("Site running at:");
     addrs
         .into_iter()
-        .for_each(|(addr, scheme)| println!("\t{scheme}://{addr}"));
+        .for_each(|(addr, scheme)| println!("\t{scheme}://{addr}{}", CONFIG.scope));
 
     let server = server.run();
     server.await

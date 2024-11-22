@@ -4,4 +4,5 @@ use serde::Deserialize;
 pub(crate) struct Config {
     pub(crate) bind_address: String,
     pub(crate) port: u16,
+    pub(crate) scope: String,
 }
