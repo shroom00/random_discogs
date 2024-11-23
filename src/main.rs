@@ -4,12 +4,10 @@ pub(crate) mod constants;
 use std::{
     collections::HashMap,
     fmt::Debug,
-    fs::{self, File, OpenOptions},
-    hash::Hash,
-    marker::PhantomData,
-    path::PathBuf,
-    sync::RwLock,
-    time::{Duration, SystemTime},
+    fs::{self, File},
+    hash::{DefaultHasher, Hash, Hasher},
+    path::{Path, PathBuf},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use actix_files::Files;
@@ -545,12 +543,9 @@ async fn get_api_params(
     Ok((api_params, count.min(MAX_RESULTS)))
 }
 
-struct ResponseLock;
 struct ResponseCache {
     expiry_seconds: u64,
     directory: PathBuf,
-    /// The RwLock doesn't actually store anything, we only use it as an interface to lock write access to the cache
-    lock: RwLock<PhantomData<ResponseLock>>,
 }
 
 impl ResponseCache {
@@ -560,9 +555,9 @@ impl ResponseCache {
         Self {
             expiry_seconds,
             directory,
-            lock: RwLock::new(PhantomData),
         }
     }
+
     async fn get_response<U: IntoUrl + Debug + Hash>(
         &self,
         client: &Client,
@@ -578,76 +573,112 @@ impl ResponseCache {
             .1
             .split('&')
             .collect::<Vec<_>>();
-        let query_str = query_params.join("&");
         query_params.sort();
-        let fp = self.directory.join(query_str);
-        println!("fp is {fp:?}");
-        let mut delete = false;
-        {
-            let _read = self.lock.read().unwrap();
 
-            let f = File::open(&fp);
-            match f {
-                Ok(f) => {
-                    println!("{url:?} is cached.");
-                    if f.metadata()
-                        .and_then(|metadata| {
-                            Ok(SystemTime::now()
-                            .duration_since(metadata.created().expect(
-                                "File creation metadata isn't available, hashing is not possible.",
-                            ))
-                            .unwrap()
-                            .as_secs()
-                            < self.expiry_seconds)
-                        })
-                        .unwrap_or(false)
-                    {
-                        let choices =
-                            serde_json::from_reader::<File, Vec<(String, String, u32)>>(f).unwrap();
-                        return Ok(choices);
-                    } else {
-                        delete = true;
-                    }
+        let query_hash = {
+            let mut hasher = DefaultHasher::new();
+            query_params.hash(&mut hasher);
+            hasher.finish()
+        };
+
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        // Check for an existing cache file
+        if let Some(cached_file) = self.get_single_cache_file(query_hash) {
+            println!("{url:?} is cached at {cached_file:?}");
+            if let Some(timestamp) = self.get_timestamp_from_filename(&cached_file) {
+                if now - timestamp < self.expiry_seconds {
+                    // Read cached data
+                    let data: Vec<(String, String, u32)> =
+                        serde_json::from_reader(File::open(&cached_file).unwrap()).unwrap();
+                    return Ok(data);
+                } else {
+                    fs::remove_file(cached_file).unwrap(); // Remove expired file
                 }
-                Err(_) => (),
             }
         }
 
-        if delete {
-            let _write = self.lock.write();
-            fs::remove_file(&fp).unwrap();
-        }
-
+        // Fetch data if no valid cache
         let out = get_html(client, url).await;
         match out {
             Ok(ref vdom) => {
                 let choices = filter._get_choices(vdom);
-                let _write = self.lock.write();
-                let f = OpenOptions::new()
-                    .write(true)
-                    .create(true)
-                    .open(fp)
-                    .unwrap();
-                serde_json::to_writer(f, &choices).unwrap();
-                return Ok(choices);
+
+                // Delete any existing files for this query hash
+                self.delete_all_cache_files(query_hash);
+
+                // Save new cache file with timestamp in the filename
+                let fp = self.directory.join(format!("{query_hash}_{now}.json"));
+                serde_json::to_writer(File::create(&fp).unwrap(), &choices).unwrap();
+
+                Ok(choices)
             }
             Err(status) => Err(status),
         }
     }
+
+    fn get_single_cache_file(&self, query_hash: u64) -> Option<PathBuf> {
+        fs::read_dir(&self.directory)
+            .unwrap()
+            .filter_map(|entry| entry.ok().map(|e| e.path()))
+            .find(|path| {
+                path.file_name()
+                    .and_then(|name| name.to_str())
+                    .map(|name| name.starts_with(&format!("{query_hash}_")))
+                    .unwrap_or(false)
+            })
+    }
+
+    fn delete_all_cache_files(&self, query_hash: u64) {
+        for cached_file in self.get_cache_files(query_hash) {
+            fs::remove_file(cached_file).unwrap();
+        }
+    }
+
+    fn get_cache_files(&self, query_hash: u64) -> Vec<PathBuf> {
+        fs::read_dir(&self.directory)
+            .unwrap()
+            .filter_map(|entry| entry.ok().map(|e| e.path()))
+            .filter(|path| {
+                path.file_name()
+                    .and_then(|name| name.to_str())
+                    .map(|name| name.starts_with(&format!("{query_hash}_")))
+                    .unwrap_or(false)
+            })
+            .collect()
+    }
+
+    fn get_timestamp_from_filename(&self, path: &Path) -> Option<u64> {
+        path.file_name()
+            .and_then(|name| name.to_str())
+            .and_then(|name| name.split('_').nth(1))
+            .and_then(|timestamp| timestamp.strip_suffix(".json"))
+            .and_then(|timestamp| timestamp.parse().ok())
+    }
 }
 #[actix_web::main]
 pub async fn main() -> Result<(), std::io::Error> {
-    let server = match HttpServer::new(move || {
-        let mut tera = Tera::new("./templates/*").unwrap();
-        tera.autoescape_on(vec![".html", ".htm", ".xml", ".tera"]);
-        let cache = ResponseCache::new(60 * 60 * 24 * 2, "cache");
-        App::new()
-            .service(scope(&CONFIG.scope))
+    let config_scope = CONFIG.scope.trim_end_matches('/').to_string();
+    let server = match HttpServer::new({
+        let config_scope = config_scope.clone();
+        move || {
+            let mut tera = Tera::new("./templates/*").unwrap();
+            tera.autoescape_on(vec![".html", ".htm", ".xml", ".tera"]);
+            let cache = ResponseCache::new(60 * 60 * 24 * 2, "cache");
+            if config_scope.len() == 0 {
+                App::new()
+            } else {
+                App::new().service(scope(&config_scope))
+            }
             .app_data(Data::new(cache))
             .app_data(Data::new(tera))
             .service(get_random)
             .service(Files::new("/css", "./css"))
             .service(Files::new("/static", "./static"))
+        }
     })
     .bind((CONFIG.bind_address.as_str(), CONFIG.port))
     {
@@ -659,7 +690,7 @@ pub async fn main() -> Result<(), std::io::Error> {
     println!("Site running at:");
     addrs
         .into_iter()
-        .for_each(|(addr, scheme)| println!("\t{scheme}://{addr}{}", CONFIG.scope));
+        .for_each(|(addr, scheme)| println!("\t{scheme}://{addr}{}", config_scope));
 
     let server = server.run();
     server.await
