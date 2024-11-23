@@ -668,16 +668,23 @@ pub async fn main() -> Result<(), std::io::Error> {
             let mut tera = Tera::new("./templates/*").unwrap();
             tera.autoescape_on(vec![".html", ".htm", ".xml", ".tera"]);
             let cache = ResponseCache::new(60 * 60 * 24 * 2, "cache");
-            if config_scope.len() == 0 {
-                App::new()
-            } else {
-                App::new().service(scope(&config_scope))
+            {
+                let app = App::new()
+                    .app_data(Data::new(cache))
+                    .app_data(Data::new(tera));
+                if config_scope.len() == 0 {
+                    app.service(get_random)
+                        .service(Files::new("/css", "./css"))
+                        .service(Files::new("/static", "./static"))
+                } else {
+                    app.service(
+                        scope(&config_scope)
+                            .service(get_random)
+                            .service(Files::new("/css", "./css"))
+                            .service(Files::new("/static", "./static")),
+                    )
+                }
             }
-            .app_data(Data::new(cache))
-            .app_data(Data::new(tera))
-            .service(get_random)
-            .service(Files::new("/css", "./css"))
-            .service(Files::new("/static", "./static"))
         }
     })
     .bind((CONFIG.bind_address.as_str(), CONFIG.port))
